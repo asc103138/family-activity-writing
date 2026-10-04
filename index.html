@@ -693,35 +693,22 @@
   const COLORS = ['#4fc3f7','#e8643a','#ffb74d','#81c784','#ce93d8','#80deea','#f48fb1'];
   let wcData = [];
 
-  window.wcSubmit = async function() {
-    const input = document.getElementById('wc-input');
-    const word = input.value.trim();
-    if (!word) return;
-    const btn = document.getElementById('wc-btn');
-    btn.disabled = true;
-    try {
-      await addDoc(wordsRef, { word, created_at: serverTimestamp() });
-      input.value = '';
-    } catch(e) {
-      console.error("提交文字失敗:", e);
-    } finally {
-      btn.disabled = false;
-    }
-  };
-
-  document.getElementById('wc-input')?.addEventListener('keypress', e => {
-    if (e.key === 'Enter') window.wcSubmit();
-  });
-  document.getElementById('wc-btn')?.addEventListener('click', window.wcSubmit);
-
-  onSnapshot(query(wordsRef, orderBy('created_at', 'asc')), snap => {
-    const words = [];
-    snap.forEach(doc => {
-      const data = doc.data();
-      if (data && data.word) words.push(data.word);
+  // 防止 Reveal.js 快捷鍵（如空白鍵切頁、方向鍵等）干擾文字框輸入
+  const inputEl = document.getElementById('wc-input');
+  if (inputEl) {
+    ['keydown', 'keyup', 'keypress'].forEach(evt => {
+      inputEl.addEventListener(evt, e => e.stopPropagation());
     });
+  }
+
+  function renderWordCloudData(words) {
     const counts = {};
-    words.forEach(w => counts[w] = (counts[w] || 0) + 1);
+    words.forEach(w => {
+      if (w && typeof w === 'string') {
+        const trimmed = w.trim();
+        if (trimmed) counts[trimmed] = (counts[trimmed] || 0) + 1;
+      }
+    });
     wcData = Object.entries(counts).sort((a, b) => b[1] - a[1]);
 
     const totalEl = document.getElementById('wc-total');
@@ -741,7 +728,80 @@
     const empty = document.getElementById('wc-empty');
     if (empty) empty.style.display = wcData.length > 0 ? 'none' : '';
     drawWordCloud();
+  }
+
+  // 本地快取與容錯
+  function getLocalWords() {
+    try {
+      return JSON.parse(localStorage.getItem('family_wc_words') || '[]');
+    } catch(e) { return []; }
+  }
+  function saveLocalWord(word) {
+    try {
+      const arr = getLocalWords();
+      arr.push(word);
+      localStorage.setItem('family_wc_words', JSON.stringify(arr));
+      return arr;
+    } catch(e) { return []; }
+  }
+
+  // 初始載入本地預設（若雲端連線失敗或尚無資料時有預設靈感）
+  let localWords = getLocalWords();
+  if (localWords.length === 0) {
+    localWords = ['烤肉', '中秋節', '棉花糖', '大顯身手', '歡聚', '笑聲', '愛惜食物'];
+    localStorage.setItem('family_wc_words', JSON.stringify(localWords));
+  }
+  renderWordCloudData(localWords);
+
+  window.wcSubmit = async function() {
+    const input = document.getElementById('wc-input');
+    const word = input.value.trim();
+    if (!word) return;
+    const btn = document.getElementById('wc-btn');
+    btn.disabled = true;
+
+    // 先存入本地，確保即便 Firestore 延遲或權限異常也能即時看到互動效果
+    const updated = saveLocalWord(word);
+    renderWordCloudData(updated);
+
+    try {
+      await addDoc(wordsRef, { word, created_at: serverTimestamp() });
+    } catch(e) {
+      console.warn("Firestore 雲端同步失敗（已保存在本機/離線模式）:", e);
+    } finally {
+      input.value = '';
+      btn.disabled = false;
+      input.focus();
+    }
+  };
+
+  document.getElementById('wc-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      window.wcSubmit();
+    }
   });
+  document.getElementById('wc-btn')?.addEventListener('click', window.wcSubmit);
+
+  // 嘗試監聽 Firestore 雲端同步
+  try {
+    onSnapshot(query(wordsRef, orderBy('created_at', 'asc')), snap => {
+      const cloudWords = [];
+      snap.forEach(doc => {
+        const data = doc.data();
+        if (data && data.word) cloudWords.push(data.word);
+      });
+      if (cloudWords.length > 0) {
+        // 合併雲端與本地
+        const merged = Array.from(new Set([...cloudWords, ...getLocalWords()]));
+        renderWordCloudData(merged);
+      }
+    }, err => {
+      console.warn("Firestore onSnapshot 離線備援啟用:", err.message);
+    });
+  } catch(err) {
+    console.warn("無法啟動 Firestore 監聽:", err);
+  }
 
   function drawWordCloud() {
     const canvas = document.getElementById('wc-canvas');
@@ -778,7 +838,46 @@
   ];
   const pollRef = doc(fdb, 'family_activity_writing_poll', 'slide12');
   const userId = 'user_' + Math.random().toString(36).slice(2, 9);
-  let myVote = null;
+  let myVote = localStorage.getItem('family_poll_myvote');
+
+  function renderPollResults(votes) {
+    const counts = {};
+    OPTIONS.forEach(o => counts[o.id] = 0);
+    Object.values(votes).forEach(v => { if (counts[v] !== undefined) counts[v]++; });
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+
+    const totalEl = document.getElementById('poll-total');
+    if (totalEl) totalEl.textContent = total;
+
+    OPTIONS.forEach(opt => {
+      const pct = total > 0 ? Math.round((counts[opt.id] / total) * 100) : 0;
+      const bar = document.getElementById(`poll-bar-${opt.id}`);
+      const pctEl = document.getElementById(`poll-pct-${opt.id}`);
+      const check = document.getElementById(`poll-check-${opt.id}`);
+      if (bar) bar.style.width = pct + '%';
+      if (pctEl) pctEl.textContent = pct + '%';
+      if (check) {
+        if (myVote === opt.id) {
+          check.textContent = '✓';
+          check.style.background = 'var(--accent2)';
+          check.style.borderColor = 'var(--accent2)';
+          check.style.color = '#0d1117';
+          check.style.fontWeight = 'bold';
+        } else {
+          check.textContent = '';
+          check.style.background = 'transparent';
+          check.style.borderColor = 'rgba(255,255,255,0.3)';
+        }
+      }
+    });
+  }
+
+  // 本地票數快取
+  function getLocalPollVotes() {
+    try {
+      return JSON.parse(localStorage.getItem('family_poll_votes') || '{"u1":"b","u2":"b","u3":"a"}');
+    } catch(e) { return {"u1":"b"}; }
+  }
 
   const container = document.getElementById('poll-options');
   if (container) {
@@ -806,45 +905,39 @@
     });
   }
 
+  renderPollResults(getLocalPollVotes());
+
   async function vote(optId) {
     myVote = optId;
+    localStorage.setItem('family_poll_myvote', optId);
+    const local = getLocalPollVotes();
+    local[userId] = optId;
+    localStorage.setItem('family_poll_votes', JSON.stringify(local));
+    renderPollResults(local);
+
     const data = {};
     data[`votes.${userId}`] = optId;
     data.updated_at = serverTimestamp();
     try {
       await setDoc(pollRef, data, { merge: true });
     } catch(e) {
-      console.error("投票失敗:", e);
+      console.warn("Firestore 投票雲端同步失敗（已保存在本機）:", e);
     }
   }
 
-  onSnapshot(pollRef, snap => {
-    const data = snap.data() || {};
-    const votes = data.votes || {};
-    const counts = {};
-    OPTIONS.forEach(o => counts[o.id] = 0);
-    Object.values(votes).forEach(v => { if (counts[v] !== undefined) counts[v]++; });
-    const total = Object.values(counts).reduce((a, b) => a + b, 0);
-
-    const totalEl = document.getElementById('poll-total');
-    if (totalEl) totalEl.textContent = total;
-
-    OPTIONS.forEach(opt => {
-      const pct = total > 0 ? Math.round((counts[opt.id] / total) * 100) : 0;
-      const bar = document.getElementById(`poll-bar-${opt.id}`);
-      const pctEl = document.getElementById(`poll-pct-${opt.id}`);
-      const check = document.getElementById(`poll-check-${opt.id}`);
-      if (bar) bar.style.width = pct + '%';
-      if (pctEl) pctEl.textContent = pct + '%';
-      if (check && myVote === opt.id) {
-        check.textContent = '✓';
-        check.style.background = 'var(--accent2)';
-        check.style.borderColor = 'var(--accent2)';
-        check.style.color = '#0d1117';
-        check.style.fontWeight = 'bold';
+  try {
+    onSnapshot(pollRef, snap => {
+      const data = snap.data() || {};
+      const votes = data.votes || {};
+      if (Object.keys(votes).length > 0) {
+        renderPollResults(votes);
       }
+    }, err => {
+      console.warn("Firestore poll 離線備援啟用");
     });
-  });
+  } catch(err) {
+    console.warn("無法啟動 Firestore poll 監聽:", err);
+  }
 </script>
 
 </body>
