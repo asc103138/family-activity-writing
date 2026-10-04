@@ -280,9 +280,9 @@
               <span style="display:inline-block; background:#ff4757; color:#fff; padding:1px 6px; border-radius:10px; font-size:0.85em; animation:pulse 1.5s infinite;">LIVE</span>
             </div>
             <div id="wc-list" style="font-size:0.33em; overflow-y:auto; flex:1; color:#cbd5e1;"></div>
-            <div style="margin-top:6px; font-size:0.3em; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">
-              總提交：<span id="wc-total" style="color:var(--accent); font-weight:700;">0</span> 則　
-              多樣想法：<span id="wc-unique" style="color:var(--accent2); font-weight:700;">0</span> 種
+            <div style="margin-top:6px; font-size:0.3em; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px; display:flex; justify-content:space-between; align-items:center;">
+              <div>總提交：<span id="wc-total" style="color:var(--accent); font-weight:700;">0</span> 則　多樣：<span id="wc-unique" style="color:var(--accent2); font-weight:700;">0</span> 種</div>
+              <button id="wc-reset-btn" title="新班級重置文字雲" style="background:transparent; border:1px solid rgba(255,255,255,0.2); color:#94a3b8; border-radius:4px; font-size:11px; padding:2px 6px; cursor:pointer;">重置 ↺</button>
             </div>
           </div>
         </div>
@@ -547,8 +547,9 @@
       <div id="poll-options" style="display:flex; flex-direction:column; gap:10px; margin-top:0.6em;">
         <!-- 動態生成選項 -->
       </div>
-      <div style="font-size:0.36em; color:#94a3b8; text-align:center; margin-top:0.8em;">
-        全班即時投票：<span id="poll-total" style="color:var(--accent2); font-weight:700;">0</span> 人已作答
+      <div style="font-size:0.36em; color:#94a3b8; text-align:center; margin-top:0.8em; display:flex; justify-content:center; align-items:center; gap:16px;">
+        <span>全班即時投票：<span id="poll-total" style="color:var(--accent2); font-weight:700;">0</span> 人已作答</span>
+        <button id="poll-reset-btn" title="新班級重置投票" style="background:transparent; border:1px solid rgba(255,255,255,0.2); color:#94a3b8; border-radius:4px; font-size:11px; padding:2px 8px; cursor:pointer;">重置投票 ↺</button>
       </div>
     </section>
 
@@ -800,8 +801,13 @@
       console.warn("Firestore onSnapshot 離線備援啟用:", err.message);
     });
   } catch(err) {
-    console.warn("無法啟動 Firestore 監聽:", err);
-  }
+  // 重置文字雲（支援一鍵清空/新班級開局）
+  document.getElementById('wc-reset-btn')?.addEventListener('click', () => {
+    if (confirm('確定要清空文字雲，讓下一班學生重新輸入嗎？')) {
+      localStorage.removeItem('family_wc_words');
+      renderWordCloudData([]);
+    }
+  });
 
   function drawWordCloud() {
     const canvas = document.getElementById('wc-canvas');
@@ -935,9 +941,15 @@
     }, err => {
       console.warn("Firestore poll 離線備援啟用");
     });
-  } catch(err) {
-    console.warn("無法啟動 Firestore poll 監聽:", err);
-  }
+  // 重置投票結果（支援一鍵清空/新班級開局）
+  document.getElementById('poll-reset-btn')?.addEventListener('click', () => {
+    if (confirm('確定要清空全班投票紀錄，讓新班級重新作答嗎？')) {
+      localStorage.removeItem('family_poll_votes');
+      localStorage.removeItem('family_poll_myvote');
+      myVote = null;
+      renderPollResults({});
+    }
+  });
 </script>
 
 </body>
