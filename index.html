@@ -645,6 +645,11 @@
     progress: true,
     controls: true,
     slideNumber: 'c/t',
+    keyboardCondition: function() {
+      // 若當前焦點在任何輸入框、textarea 或按鈕上，暫停 Reveal.js 快捷鍵響應
+      const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+      return tag !== 'input' && tag !== 'textarea' && tag !== 'select';
+    },
     plugins: []
   });
 
@@ -698,7 +703,10 @@
   const inputEl = document.getElementById('wc-input');
   if (inputEl) {
     ['keydown', 'keyup', 'keypress'].forEach(evt => {
-      inputEl.addEventListener(evt, e => e.stopPropagation());
+      inputEl.addEventListener(evt, e => {
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      });
     });
   }
 
@@ -779,6 +787,7 @@
   document.getElementById('wc-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       window.wcSubmit();
     }
   });
@@ -801,6 +810,9 @@
       console.warn("Firestore onSnapshot 離線備援啟用:", err.message);
     });
   } catch(err) {
+    console.warn("無法啟動 Firestore 監聽:", err);
+  }
+
   // 重置文字雲（支援一鍵清空/新班級開局）
   document.getElementById('wc-reset-btn')?.addEventListener('click', () => {
     if (confirm('確定要清空文字雲，讓下一班學生重新輸入嗎？')) {
@@ -941,6 +953,10 @@
     }, err => {
       console.warn("Firestore poll 離線備援啟用");
     });
+  } catch(err) {
+    console.warn("無法啟動 Firestore poll 監聽:", err);
+  }
+
   // 重置投票結果（支援一鍵清空/新班級開局）
   document.getElementById('poll-reset-btn')?.addEventListener('click', () => {
     if (confirm('確定要清空全班投票紀錄，讓新班級重新作答嗎？')) {
