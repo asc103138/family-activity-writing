@@ -226,8 +226,18 @@
     }
     .essay-scroll p { margin-bottom: 1em; text-indent: 2em; }
 
-    /* === 動畫與按鈕 === */
+    /* === 動畫與按鈕 (Emil Kowalski Baseline) === */
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .btn-action, .btn-reset, .btn-clear {
+      font-family: inherit;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.15s cubic-bezier(0.23, 1, 0.32, 1), background 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
+    }
+    .btn-action:active, .btn-reset:active, .btn-clear:active {
+      transform: scale(0.97);
+    }
     .btn-action {
       background: var(--accent2);
       color: #0d1117;
@@ -235,8 +245,63 @@
       padding: 9px 18px;
       border-radius: 8px;
       font-weight: 700;
-      cursor: pointer;
-      font-family: inherit;
+    }
+    .btn-action:hover {
+      background: #7dd3fc;
+    }
+    .btn-reset {
+      background: rgba(255, 255, 255, 0.08);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .btn-reset:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+    .btn-clear {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .btn-clear:hover {
+      color: #fff;
+    }
+
+    /* === 輕量反饋 Toast === */
+    .wc-toast {
+      position: absolute;
+      top: 14px;
+      right: 14px;
+      background: rgba(13, 17, 23, 0.94);
+      border: 1px solid var(--accent2);
+      color: #e0f2fe;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.38em;
+      font-weight: 600;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      opacity: 0;
+      transform: translateY(-8px) scale(0.96);
+      pointer-events: none;
+      transition: opacity 0.22s cubic-bezier(0.23, 1, 0.32, 1), transform 0.22s cubic-bezier(0.23, 1, 0.32, 1);
+      z-index: 100;
+    }
+    .wc-toast.show {
+      opacity: 1;
+      transform: translateY(0) scale(1);
     }
   </style>
 </head>
@@ -263,26 +328,43 @@
     <!-- Slide 2: 互動文字雲 [INTERACT:wordcloud] -->
     <section id="slide-wordcloud">
       <h2>即時破冰：提到家庭活動，你第一個想到什麼？</h2>
-      <div style="display:grid; grid-template-columns:260px 1fr; gap:16px; height:450px;">
+      <div style="display:grid; grid-template-columns:280px 1fr; gap:16px; height:450px; position:relative;">
+        <div id="wc-toast" class="wc-toast">✨ 文字雲已重置，歡迎新班級使用！</div>
+
         <!-- 左欄：輸入與即時統計 -->
         <div style="display:flex; flex-direction:column; gap:10px;">
-          <div style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:10px; padding:14px;">
-            <div style="font-size:0.38em; color:var(--accent2); font-weight:700; margin-bottom:8px;">輸入你的關鍵詞</div>
-            <input id="wc-input" type="text" placeholder="例：烤肉、露營、散步…" maxlength="15"
-              style="width:100%; padding:8px 12px; border-radius:8px; border:1px solid rgba(79,195,247,0.3);
-                     background:rgba(255,255,255,0.08); color:#fff; font-size:13px;
-                     box-sizing:border-box; font-family:inherit; outline:none;" />
-            <button id="wc-btn" class="btn-action" style="width:100%; margin-top:8px;">送出靈感 ↵</button>
+          <!-- 輸入卡片 -->
+          <div id="wc-input-card" style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:10px; padding:14px; cursor:text;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-size:0.38em; color:var(--accent2); font-weight:700;">輸入你的關鍵詞</span>
+              <span style="font-size:0.3em; color:#64748b;">按 Enter 送出</span>
+            </div>
+            <div style="position:relative; width:100%;">
+              <input id="wc-input" type="text" placeholder="例：烤肉、露營、散步…" maxlength="15" autocomplete="off"
+                style="width:100%; padding:10px 32px 10px 12px; border-radius:8px; border:1px solid rgba(79,195,247,0.35);
+                       background:rgba(255,255,255,0.08); color:#fff; font-size:16px;
+                       box-sizing:border-box; font-family:inherit; outline:none; transition:border 0.2s, background 0.2s;" />
+              <button id="wc-clear-input" class="btn-clear" title="清除文字"
+                style="position:absolute; right:6px; top:50%; transform:translateY(-50%); display:none;">✕</button>
+            </div>
+            <div style="display:flex; gap:8px; margin-top:10px;">
+              <button id="wc-btn" class="btn-action" style="flex:1;">送出靈感 ↵</button>
+              <button id="wc-reset-input-btn" class="btn-reset" title="清空文字雲數據，供新班級使用">🔄 重置</button>
+            </div>
           </div>
+
+          <!-- 全班統計清單 -->
           <div style="background:var(--card-bg); border:1px solid var(--card-border); border-radius:10px; padding:12px; flex:1; display:flex; flex-direction:column; overflow:hidden;">
-            <div style="font-size:0.36em; color:var(--accent2); font-weight:700; margin-bottom:6px;">
-              全班即時靈感
-              <span style="display:inline-block; background:#ff4757; color:#fff; padding:1px 6px; border-radius:10px; font-size:0.85em; animation:pulse 1.5s infinite;">LIVE</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <div style="font-size:0.36em; color:var(--accent2); font-weight:700;">
+                全班即時靈感
+                <span style="display:inline-block; background:#ff4757; color:#fff; padding:1px 6px; border-radius:10px; font-size:0.85em; animation:pulse 1.5s infinite;">LIVE</span>
+              </div>
             </div>
             <div id="wc-list" style="font-size:0.33em; overflow-y:auto; flex:1; color:#cbd5e1;"></div>
             <div style="margin-top:6px; font-size:0.3em; color:#94a3b8; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px; display:flex; justify-content:space-between; align-items:center;">
               <div>總提交：<span id="wc-total" style="color:var(--accent); font-weight:700;">0</span> 則　多樣：<span id="wc-unique" style="color:var(--accent2); font-weight:700;">0</span> 種</div>
-              <button id="wc-reset-btn" title="新班級重置文字雲" style="background:transparent; border:1px solid rgba(255,255,255,0.2); color:#94a3b8; border-radius:4px; font-size:11px; padding:2px 6px; cursor:pointer;">重置 ↺</button>
+              <button id="wc-reset-btn" class="btn-reset" style="padding:2px 8px; font-size:11px;" title="清空文字雲數據，供新班級使用">清空 ↺</button>
             </div>
           </div>
         </div>
@@ -645,10 +727,23 @@
     progress: true,
     controls: true,
     slideNumber: 'c/t',
-    keyboardCondition: function() {
-      // 若當前焦點在任何輸入框、textarea 或按鈕上，暫停 Reveal.js 快捷鍵響應
-      const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-      return tag !== 'input' && tag !== 'textarea' && tag !== 'select';
+    keyboardCondition: function(event) {
+      // 若當前焦點或事件來源在任何輸入框、textarea 或按鈕上，暫停 Reveal.js 快捷鍵響應
+      const target = event ? (event.target || (event.composedPath && event.composedPath()[0])) : null;
+      if (target && target.tagName) {
+        const t = target.tagName.toLowerCase();
+        if (t === 'input' || t === 'textarea' || t === 'select' || target.isContentEditable) {
+          return false;
+        }
+      }
+      const active = document.activeElement;
+      if (active && active.tagName) {
+        const a = active.tagName.toLowerCase();
+        if (a === 'input' || a === 'textarea' || a === 'select' || active.isContentEditable) {
+          return false;
+        }
+      }
+      return true;
     },
     plugins: []
   });
@@ -683,7 +778,7 @@
   } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 
   const firebaseConfig = {
-    apiKey: "AIzaSyAYQhNavPSce17XtvDC5xnXyl9iUhW9KjA",
+    apiKey: "YOUR_FIREBASE_API_KEY",
     authDomain: "teacherstudy-109ef.firebaseapp.com",
     projectId: "teacherstudy-109ef",
     storageBucket: "teacherstudy-109ef.firebasestorage.app",
@@ -699,14 +794,65 @@
   const COLORS = ['#4fc3f7','#e8643a','#ffb74d','#81c784','#ce93d8','#80deea','#f48fb1'];
   let wcData = [];
 
-  // 防止 Reveal.js 快捷鍵（如空白鍵切頁、方向鍵等）干擾文字框輸入
+  // === 輸入框事件與防干擾保護 (徹底解決無法輸入與快捷鍵搶鍵問題) ===
   const inputEl = document.getElementById('wc-input');
+  const clearBtn = document.getElementById('wc-clear-input');
+
+  function updateClearBtn() {
+    if (clearBtn && inputEl) {
+      clearBtn.style.display = inputEl.value.trim() ? 'block' : 'none';
+    }
+  }
+
   if (inputEl) {
-    ['keydown', 'keyup', 'keypress'].forEach(evt => {
+    // 聚焦時科技高亮樣式
+    inputEl.addEventListener('focus', () => {
+      inputEl.style.borderColor = 'var(--accent2)';
+      inputEl.style.background = 'rgba(79, 195, 247, 0.12)';
+    });
+    inputEl.addEventListener('blur', () => {
+      inputEl.style.borderColor = 'rgba(79, 195, 247, 0.35)';
+      inputEl.style.background = 'rgba(255, 255, 255, 0.08)';
+    });
+
+    // 關鍵鍵盤處理：停止向上冒泡避免 Reveal.js 搶鍵 (Space/方向鍵換頁等)，並正確處理 Enter 送出與 Escape 清除
+    inputEl.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        window.wcSubmit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        inputEl.value = '';
+        updateClearBtn();
+      }
+    });
+
+    ['keyup', 'keypress', 'input'].forEach(evt => {
       inputEl.addEventListener(evt, e => {
         e.stopPropagation();
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        updateClearBtn();
       });
+    });
+  }
+
+  // 點擊輸入卡片任何區域自動聚焦至輸入框
+  const inputCard = document.getElementById('wc-input-card');
+  if (inputCard && inputEl) {
+    inputCard.addEventListener('click', e => {
+      if (e.target !== clearBtn && !e.target.closest('button')) {
+        inputEl.focus();
+      }
+    });
+  }
+
+  // 清除輸入框按鈕
+  if (clearBtn && inputEl) {
+    clearBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      inputEl.value = '';
+      updateClearBtn();
+      inputEl.focus();
     });
   }
 
@@ -762,36 +908,33 @@
   }
   renderWordCloudData(localWords);
 
-  window.wcSubmit = async function() {
+  // 樂觀即時送出：絕不等待網路或 disable 輸入框，達成 0 延遲順暢輸入體驗
+  window.wcSubmit = function() {
     const input = document.getElementById('wc-input');
+    if (!input) return;
     const word = input.value.trim();
-    if (!word) return;
-    const btn = document.getElementById('wc-btn');
-    btn.disabled = true;
+    if (!word) {
+      input.focus();
+      return;
+    }
 
-    // 先存入本地，確保即便 Firestore 延遲或權限異常也能即時看到互動效果
+    // 1. 立即更新本機儲存與畫面上圖表
     const updated = saveLocalWord(word);
     renderWordCloudData(updated);
+    input.value = '';
+    updateClearBtn();
+    input.focus();
 
-    try {
-      await addDoc(wordsRef, { word, created_at: serverTimestamp() });
-    } catch(e) {
-      console.warn("Firestore 雲端同步失敗（已保存在本機/離線模式）:", e);
-    } finally {
-      input.value = '';
-      btn.disabled = false;
-      input.focus();
-    }
+    // 2. 背景非同步同步至 Firestore（若離線或權限受限亦完全不干擾現場教學互動）
+    addDoc(wordsRef, { word, created_at: serverTimestamp() }).catch(e => {
+      console.warn("Firestore 雲端同步背景資訊（離線本機模式正常運行）:", e);
+    });
   };
 
-  document.getElementById('wc-input')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      e.stopPropagation();
-      window.wcSubmit();
-    }
+  document.getElementById('wc-btn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    window.wcSubmit();
   });
-  document.getElementById('wc-btn')?.addEventListener('click', window.wcSubmit);
 
   // 嘗試監聽 Firestore 雲端同步
   try {
@@ -813,12 +956,33 @@
     console.warn("無法啟動 Firestore 監聽:", err);
   }
 
-  // 重置文字雲（支援一鍵清空/新班級開局）
-  document.getElementById('wc-reset-btn')?.addEventListener('click', () => {
-    if (confirm('確定要清空文字雲，讓下一班學生重新輸入嗎？')) {
-      localStorage.removeItem('family_wc_words');
-      renderWordCloudData([]);
+  // === 輕量反饋 Toast 與重置文字雲功能 (供下一班重複使用) ===
+  function showToast(msg) {
+    const toast = document.getElementById('wc-toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  }
+
+  window.wcReset = function() {
+    localStorage.removeItem('family_wc_words');
+    renderWordCloudData([]);
+    if (inputEl) {
+      inputEl.value = '';
+      updateClearBtn();
+      inputEl.focus();
     }
+    showToast('✨ 文字雲已重置，歡迎新班級使用！');
+  };
+
+  document.getElementById('wc-reset-btn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    window.wcReset();
+  });
+  document.getElementById('wc-reset-input-btn')?.addEventListener('click', e => {
+    e.stopPropagation();
+    window.wcReset();
   });
 
   function drawWordCloud() {
@@ -842,9 +1006,15 @@
     });
   }
 
+  // 切換至本頁時自動聚焦輸入框並繪製文字雲
   Reveal.on('slidechanged', e => {
     if (e.currentSlide?.id === 'slide-wordcloud') {
-      setTimeout(drawWordCloud, 150);
+      setTimeout(() => {
+        drawWordCloud();
+        if (inputEl) {
+          inputEl.focus();
+        }
+      }, 180);
     }
   });
 
